@@ -6,9 +6,8 @@ import (
 	"log"
 	"net/http"
 
-	"news.com/events/models"
-
 	_ "github.com/go-sql-driver/mysql"
+	"news.com/events/models"
 )
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -38,10 +37,71 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "User %s logged in successfully \n", user.Username)
 }
 
+func newProjectHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only post method in newProjectHandler", http.StatusMethodNotAllowed)
+	}
+	var projet models.Project
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&projet)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	projet.CreateProject()
+}
+
+func deleteProjectHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only post method in newProjectHandler", http.StatusMethodNotAllowed)
+	}
+	var projet models.Project
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&projet)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	projet.DeleteProject()
+}
+
+func newTaskHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only post method in newTasktHandler", http.StatusMethodNotAllowed)
+	}
+	var task models.Task
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&task)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	task.CreateTask()
+}
+
+func deleteTaskHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only post method in newTasktHandler", http.StatusMethodNotAllowed)
+	}
+	var task models.Task
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&task)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	task.DeleteTask()
+}
+
 func main() {
 
 	models.CreateUser("user", "user")
 	http.HandleFunc("/login", loginHandler)
+	http.HandleFunc("/createProject", newProjectHandler)
+	http.HandleFunc("/deleteProject", deleteProjectHandler)
+	http.HandleFunc("/createTask", newTaskHandler)
+	http.HandleFunc("/deleteTask", deleteTaskHandler)
+
 	fmt.Println("Server is running on port 8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

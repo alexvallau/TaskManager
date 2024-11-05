@@ -1,21 +1,40 @@
 package models
 
 import (
-	
 	"database/sql"
 	"fmt"
 	"log"
-	"encoding/json"
-	"fmt"
-	
-	"log"
-	
-	"net/http"
-)
+
+	_ "github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/bcrypt"
 )
 
+type State string
+
+const (
+	InProgress State = "in progress"
+	Done       State = "done"
+)
+
+type Task struct {
+	Id          int    `json:"id,omitempty"`
+	ProjectId   int    `json:"projectid"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	State       State  `json:"state"`
+	Comment     string `json:"comment"`
+}
+
+type Project struct {
+	Id          int    `json:"id,omitempty"`
+	OwnerId     int    `json:"ownerId"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	State       State  `json:"state"`
+}
+
 type Utilisateur struct {
+	JWT      string `json:"jwt,omitempty"`
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
@@ -77,19 +96,79 @@ func (u *Utilisateur) Login() (bool, error) {
 	return true, nil
 }
 
-type Tache struct {
-	Titre        string
-	Description  string
-	Priorité     string
-	Etat         string
-	Utilisateurs []Utilisateur
+func (p *Project) CreateProject() {
+
+	db, err := connectDB()
+	if err != nil {
+		log.Panic(err)
+		fmt.Println("Could not connect to BDD")
+	}
+	defer db.Close()
+	query := "INSERT INTO projects(owner_id, title, Description) VALUES (?,?, ?)"
+	_, err = db.Exec(query, p.OwnerId, p.Title, p.Description)
+	if err != nil {
+		log.Panic(err)
+		fmt.Println("Could not insert Project into BDD")
+	}
+	fmt.Printf(" %s  was added", p.Title)
 }
 
-type Projet struct {
-	Titre        string
-	Etat         string
-	Taches       []Tache
-	Utilisateurs []Utilisateur
+func (p *Project) DeleteProject() {
+
+	db, err := connectDB()
+	if err != nil {
+		log.Panic(err)
+		fmt.Println("Could not connect to BDD")
+	}
+	defer db.Close()
+	//check si existe
+	var exists bool
+	checkQuery := "SELECT EXISTS(SELECT 1 FROM projetcs WHERE id = ?)"
+	err = db.QueryRow(checkQuery, p.Id).Scan(&exists)
+	if err != nil{
+		log.Panic(err)
+		fmt.Println("Error Checking if project exists")
+	}
+	if !exists{
+		fmt.Printf("Le projet n'existe pas")
+		return
+	}
+	//Si le projet n'existe pas, on supprime
+	query := "DELETE FROM projects WHERE id = ?"
+	_, err = db.Exec(query, p.Id)
+	if err != nil {
+		log.Panic(err)
+		fmt.Println("Could not insert Project into BDD")
+	}
+	fmt.Printf(" Project number %d  was deleted", p.Id)
 }
 
+func (t *Task) CreateTask() {
+	db, err := connectDB()
+	if err != nil {
+		log.Panic(err)
+	}
+	defer db.Close()
+	query := "INSERT INTO tasks(project_id, title, Description, state, commentaire) VALUES (?, ?, ?, ?, ?)"
+	_, err = db.Exec(query, t.ProjectId, t.Title, t.Description, t.State, t.Comment)
+	if err != nil {
+		log.Panic(err)
+		fmt.Println("Could not insert task into BDD")
+	}
+	fmt.Printf("Task %s  was added", t.Title)
+}
 
+func (t *Task) DeleteTask() {
+	db, err := connectDB()
+	if err != nil {
+		log.Panic(err)
+	}
+	defer db.Close()
+	query := "DELETE FROM tasks WHERE id = ?"
+	_, err = db.Exec(query, t.Id)
+	if err != nil {
+		log.Panic(err)
+		fmt.Printf("Could not delete task %d", t.Id)
+	}
+	fmt.Printf("Task %d  was deleted", t.Id)
+}
