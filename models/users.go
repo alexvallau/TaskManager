@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"log"
 
+	"time"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
-	"time"
 	"github.com/joho/godotenv"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type State string
@@ -80,7 +81,7 @@ func (u *Utilisateur) Login() (bool, error) {
 	db, err := connectDB()
 	if err != nil {
 		log.Fatal(err)
-		return  false, err
+		return false, err
 	}
 	defer db.Close()
 	var hashedPassword string
@@ -88,7 +89,7 @@ func (u *Utilisateur) Login() (bool, error) {
 	err = db.QueryRow(query, u.Username).Scan(&hashedPassword)
 	if err != nil {
 		log.Fatal(err)
-		return  false, err
+		return false, err
 	}
 	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(u.Password))
 	if err != nil {
@@ -100,35 +101,55 @@ func (u *Utilisateur) Login() (bool, error) {
 	err = db.QueryRow(queryIdUser, u.Username).Scan(&u.Id)
 	if err != nil {
 		log.Fatal(err)
-		return  false, err
+		return false, err
 	}
 
 	fmt.Printf("User %s correctly logged in", u.Username)
-	return  true, nil
+	return true, nil
 }
 
-
-func (u *Utilisateur) GenerateJWT(userID int)(string, error){
+func (u *Utilisateur) GenerateJWT(userID int) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id": 	userID,
-		"username":	u.Username,
-		"exp":		time.Now().Add(time.Hour * 24).Unix(),
-		"iat":		time.Now().Unix(),
+		"user_id":  userID,
+		"username": u.Username,
+		"exp":      time.Now().Add(time.Hour * 24).Unix(),
+		"iat":      time.Now().Unix(),
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256,claims)
-	jwtKey, err := getVarEnv("JWT_SECRET_KEY")
-	if err != nil{
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	jwtKey, err := GetVarEnv("JWT_SECRET_KEY")
+	if err != nil {
 		log.Panic(err)
 		return "", err
 	}
 
 	return token.SignedString(jwtKey)
 }
+func VerifyToken(tokenString string) error {
 
-func getVarEnv(name string)([]byte,error){
+	secretKey, err := GetVarEnv("JWT_SECRET_KEY")
+	if err != nil {
+		log.Panic(err)
+		return err
+	}
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return secretKey, nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if !token.Valid {
+		return fmt.Errorf("invalid token")
+	}
+
+	return nil
+}
+
+func GetVarEnv(name string) ([]byte, error) {
 	envFile, err := godotenv.Read(".env")
-	if err != nil{
-		return nil,err
+	if err != nil {
+		return nil, err
 	}
 	return []byte(envFile[name]), nil
 }
@@ -162,11 +183,11 @@ func (p *Project) DeleteProject() {
 	var exists bool
 	checkQuery := "SELECT EXISTS(SELECT 1 FROM projetcs WHERE id = ?)"
 	err = db.QueryRow(checkQuery, p.Id).Scan(&exists)
-	if err != nil{
+	if err != nil {
 		log.Panic(err)
 		fmt.Println("Error Checking if project exists")
 	}
-	if !exists{
+	if !exists {
 		fmt.Printf("Le projet n'existe pas")
 		return
 	}

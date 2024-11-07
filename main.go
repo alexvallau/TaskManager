@@ -25,7 +25,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 		return
 	}
-	var userId int
+	
 	isLoggedIn, err := user.Login()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -35,22 +35,42 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 		return
 	}
-	fmt.Fprintf(w, "User %s with id %d logged in successfully \n", user.Username, userId)
+	
 
 	//jwtToken
-	if user.Id == -1{
+	if user.Id == -1 {
 		return
 	}
 	jwtToken, err := user.GenerateJWT(user.Id)
 	if err != nil {
-		http.Error(w,"Could not generate token", http.StatusInternalServerError)
+		http.Error(w, "Could not generate token", http.StatusInternalServerError)
 		return
 	}
-	response := map[string]string{
-		"jwt": jwtToken,
-	}
+	//response := map[string]string{
+	//	"jwt": jwtToken,
+	//}
+	w.Header().Set("Authorization", "Bearer "+jwtToken)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "User logged in successfully")
+}
+
+func ProtectedHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(response)
+	tokenString := r.Header.Get("Authorization")
+	if tokenString == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	tokenString = tokenString[len("Bearer "):]
+
+	err := models.VerifyToken(tokenString)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, "Invalid token")
+		return
+	}
+
+	fmt.Fprint(w, "Welcome to the the protected area")
 }
 
 func newProjectHandler(w http.ResponseWriter, r *http.Request) {
@@ -116,6 +136,7 @@ func main() {
 	http.HandleFunc("/deleteProject", deleteProjectHandler)
 	http.HandleFunc("/createTask", newTaskHandler)
 	http.HandleFunc("/deleteTask", deleteTaskHandler)
+	http.HandleFunc("/protected", ProtectedHandler)
 
 	fmt.Println("Server is running on port 8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
