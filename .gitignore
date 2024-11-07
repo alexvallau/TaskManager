@@ -1,0 +1,7 @@
+# .gitignore
+.env
+
+# Ignorer les fichiers générés par Air
+.air/
+.air.conf
+*.air

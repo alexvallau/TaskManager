@@ -6,7 +6,10 @@ import (
 	"log"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"time"
+	"github.com/joho/godotenv"
 )
 
 type State string
@@ -34,7 +37,7 @@ type Project struct {
 }
 
 type Utilisateur struct {
-	JWT      string `json:"jwt,omitempty"`
+	Id       int    `json:"id,omitempty"`
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
@@ -77,7 +80,7 @@ func (u *Utilisateur) Login() (bool, error) {
 	db, err := connectDB()
 	if err != nil {
 		log.Fatal(err)
-		return false, err
+		return  false, err
 	}
 	defer db.Close()
 	var hashedPassword string
@@ -85,15 +88,49 @@ func (u *Utilisateur) Login() (bool, error) {
 	err = db.QueryRow(query, u.Username).Scan(&hashedPassword)
 	if err != nil {
 		log.Fatal(err)
-		return false, err
+		return  false, err
 	}
 	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(u.Password))
 	if err != nil {
 		fmt.Printf("Failed Connexion with username %s and password %s \n", u.Username, u.Password)
 		return false, err
 	}
+	//Maintenant que le user est authentifié, on attribu son ID DB à son ID struct
+	queryIdUser := "SELECT id FROM users WHERE username = ?"
+	err = db.QueryRow(queryIdUser, u.Username).Scan(&u.Id)
+	if err != nil {
+		log.Fatal(err)
+		return  false, err
+	}
+
 	fmt.Printf("User %s correctly logged in", u.Username)
-	return true, nil
+	return  true, nil
+}
+
+
+func (u *Utilisateur) GenerateJWT(userID int)(string, error){
+	claims := jwt.MapClaims{
+		"user_id": 	userID,
+		"username":	u.Username,
+		"exp":		time.Now().Add(time.Hour * 24).Unix(),
+		"iat":		time.Now().Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256,claims)
+	jwtKey, err := getVarEnv("JWT_SECRET_KEY")
+	if err != nil{
+		log.Panic(err)
+		return "", err
+	}
+
+	return token.SignedString(jwtKey)
+}
+
+func getVarEnv(name string)([]byte,error){
+	envFile, err := godotenv.Read(".env")
+	if err != nil{
+		return nil,err
+	}
+	return []byte(envFile[name]), nil
 }
 
 func (p *Project) CreateProject() {

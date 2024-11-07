@@ -25,6 +25,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 		return
 	}
+	var userId int
 	isLoggedIn, err := user.Login()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -34,7 +35,22 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 		return
 	}
-	fmt.Fprintf(w, "User %s logged in successfully \n", user.Username)
+	fmt.Fprintf(w, "User %s with id %d logged in successfully \n", user.Username, userId)
+
+	//jwtToken
+	if user.Id == -1{
+		return
+	}
+	jwtToken, err := user.GenerateJWT(user.Id)
+	if err != nil {
+		http.Error(w,"Could not generate token", http.StatusInternalServerError)
+		return
+	}
+	response := map[string]string{
+		"jwt": jwtToken,
+	}
+	w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
 }
 
 func newProjectHandler(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +111,6 @@ func deleteTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
-	models.CreateUser("user", "user")
 	http.HandleFunc("/login", loginHandler)
 	http.HandleFunc("/createProject", newProjectHandler)
 	http.HandleFunc("/deleteProject", deleteProjectHandler)
