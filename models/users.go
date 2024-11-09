@@ -51,6 +51,7 @@ func connectDB() (*sql.DB, error) {
 	}
 	return db, nil
 }
+
 func hashPassword(UnhashedPassword string) (hashedPassword []byte, err error) {
 	return bcrypt.GenerateFromPassword([]byte(UnhashedPassword), bcrypt.DefaultCost)
 }
@@ -140,6 +141,7 @@ func VerifyToken(tokenString string) error {
 	}
 
 	if !token.Valid {
+		fmt.Println("MOtherfucker")
 		return fmt.Errorf("invalid token")
 	}
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-
+	"strings"
 	_ "github.com/go-sql-driver/mysql"
 	"news.com/events/models"
 )
@@ -25,7 +25,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 		return
 	}
-	
+
 	isLoggedIn, err := user.Login()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -35,7 +35,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 		return
 	}
-	
 
 	//jwtToken
 	if user.Id == -1 {
@@ -71,6 +70,33 @@ func ProtectedHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprint(w, "Welcome to the the protected area")
+}
+
+func TestHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Bravo")
+}
+
+func AuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenString := r.Header.Get("Authorization")
+		fmt.Printf("hi x2 %s",tokenString)
+		if tokenString == "" {
+			fmt.Printf("your token: %s", tokenString)
+			http.Error(w, "Missing or invalid Authorization header {{tokenString}}", http.StatusUnauthorized)
+		}
+
+		//(fonctionne aussi)
+		//tokenString = tokenString[len("Bearer "):] 
+		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+
+		err := models.VerifyToken(tokenString)
+		if err != nil {
+			log.Panic(err)
+			http.Error(w, "Invalid token. Could not access to the resource", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func newProjectHandler(w http.ResponseWriter, r *http.Request) {
@@ -132,11 +158,11 @@ func deleteTaskHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	http.HandleFunc("/login", loginHandler)
-	http.HandleFunc("/createProject", newProjectHandler)
-	http.HandleFunc("/deleteProject", deleteProjectHandler)
-	http.HandleFunc("/createTask", newTaskHandler)
-	http.HandleFunc("/deleteTask", deleteTaskHandler)
-	http.HandleFunc("/protected", ProtectedHandler)
+	http.Handle("/createProject",  AuthMiddleware(http.HandlerFunc(newProjectHandler)))
+	http.Handle("/deleteProject",  AuthMiddleware(http.HandlerFunc(deleteProjectHandler)))
+	http.Handle("/createTask",  AuthMiddleware(http.HandlerFunc(newTaskHandler)))
+	http.Handle("/deleteTask",  AuthMiddleware(http.HandlerFunc(deleteTaskHandler)))
+	http.Handle("/test", AuthMiddleware(http.HandlerFunc(TestHandler)))
 
 	fmt.Println("Server is running on port 8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
