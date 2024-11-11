@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
+
 	_ "github.com/go-sql-driver/mysql"
 	"news.com/events/models"
+	"context"
 )
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -48,55 +49,49 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	//response := map[string]string{
 	//	"jwt": jwtToken,
 	//}
-	w.Header().Set("Authorization", "Bearer "+jwtToken)
+	fmt.Println("The token is ", jwtToken)
+	w.Header().Set("Authorization", jwtToken)
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "User logged in successfully")
 }
 
-func ProtectedHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	tokenString := r.Header.Get("Authorization")
-	if tokenString == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	tokenString = tokenString[len("Bearer "):]
-
-	err := models.VerifyToken(tokenString)
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, "Invalid token")
-		return
-	}
-
-	fmt.Fprint(w, "Welcome to the the protected area")
-}
-
 func TestHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Bravo")
+	fmt.Fprintf(w, "Zone test protégée OK")
 }
 
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenString := r.Header.Get("Authorization")
-		fmt.Printf("hi x2 %s",tokenString)
+
 		if tokenString == "" {
 			fmt.Printf("your token: %s", tokenString)
 			http.Error(w, "Missing or invalid Authorization header {{tokenString}}", http.StatusUnauthorized)
 		}
-
 		//(fonctionne aussi)
-		//tokenString = tokenString[len("Bearer "):] 
-		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
-
-		err := models.VerifyToken(tokenString)
+		//tokenString = tokenString[len("Bearer "):]
+		//tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+		userid,err := models.VerifyToken(tokenString)
+		//met la valeur de userid dans le contexte
+		ctx := context.WithValue(r.Context(), "userId", userid)
+		fmt.Printf("The user id from VerifyToken is %d", userid)
 		if err != nil {
 			log.Panic(err)
 			http.Error(w, "Invalid token. Could not access to the resource", http.StatusUnauthorized)
 			return
 		}
-		next.ServeHTTP(w, r)
+		if userid == -1{
+			http.Error(w, "Missing information from User", http.StatusUnauthorized)
+		}
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func ShowProjectHandler(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userId").(int)
+	fmt.Println("Je suis dans ShowProjectHandler et l'id est ",userID)
+	myTitleSlice := models.GetAllProject(userID)
+
+	fmt.Fprintf(w,"%v",string(myTitleSlice))
 }
 
 func newProjectHandler(w http.ResponseWriter, r *http.Request) {
@@ -158,11 +153,13 @@ func deleteTaskHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	http.HandleFunc("/login", loginHandler)
-	http.Handle("/createProject",  AuthMiddleware(http.HandlerFunc(newProjectHandler)))
-	http.Handle("/deleteProject",  AuthMiddleware(http.HandlerFunc(deleteProjectHandler)))
-	http.Handle("/createTask",  AuthMiddleware(http.HandlerFunc(newTaskHandler)))
-	http.Handle("/deleteTask",  AuthMiddleware(http.HandlerFunc(deleteTaskHandler)))
+	http.Handle("/createProject", AuthMiddleware(http.HandlerFunc(newProjectHandler)))
+	http.Handle("/deleteProject", AuthMiddleware(http.HandlerFunc(deleteProjectHandler)))
+	http.Handle("/project/createTask", AuthMiddleware(http.HandlerFunc(newTaskHandler)))
+	http.Handle("/project/deleteTask", AuthMiddleware(http.HandlerFunc(deleteTaskHandler)))
 	http.Handle("/test", AuthMiddleware(http.HandlerFunc(TestHandler)))
+	http.Handle("/project/getAllProject", AuthMiddleware(http.HandlerFunc(ShowProjectHandler)))
+	
 
 	fmt.Println("Server is running on port 8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))

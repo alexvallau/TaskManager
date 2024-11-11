@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 
@@ -125,27 +126,29 @@ func (u *Utilisateur) GenerateJWT(userID int) (string, error) {
 
 	return token.SignedString(jwtKey)
 }
-func VerifyToken(tokenString string) error {
+func VerifyToken(tokenString string) (int,error) {
 
 	secretKey, err := GetVarEnv("JWT_SECRET_KEY")
 	if err != nil {
 		log.Panic(err)
-		return err
+		return -1, err
 	}
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return secretKey, nil
 	})
 
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	if !token.Valid {
 		fmt.Println("MOtherfucker")
-		return fmt.Errorf("invalid token")
+		return -1, err
 	}
-
-	return nil
+	claims := token.Claims.(jwt.MapClaims)
+	fmt.Println("claims id usre", claims["user_id"])
+	user_id := claims["user_id"]
+	return int(user_id.(float64)), nil
 }
 
 func GetVarEnv(name string) ([]byte, error) {
@@ -201,6 +204,35 @@ func (p *Project) DeleteProject() {
 		fmt.Println("Could not insert Project into BDD")
 	}
 	fmt.Printf(" Project number %d  was deleted", p.Id)
+}
+
+func GetAllProject(userId int)[]byte{
+	
+	db, err := connectDB()
+	if err != nil{
+
+		log.Fatal(err)
+	}
+	defer db.Close()
+	
+	var query = "SELECT title FROM projects WHERE owner_id = ? "
+	rows, err := db.Query(query, userId)
+	myTitleSclice := []string{}
+	for rows.Next(){
+		var title string
+		if err := rows.Scan(&title); err != nil{
+			log.Fatal(title)
+		}
+		fmt.Println(title)
+		myTitleSclice = append(myTitleSclice, title)
+	}
+	//convert to json
+	j, err := json.Marshal(myTitleSclice)
+	if err != nil{
+		log.Panic(err)
+	}
+	fmt.Println(string(j))
+	return j
 }
 
 func (t *Task) CreateTask() {
