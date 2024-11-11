@@ -226,7 +226,7 @@ func GetAllProject(userId int)[]byte{
 		fmt.Println(title)
 		myTitleSclice = append(myTitleSclice, title)
 	}
-	//convert to json
+	
 	j, err := json.Marshal(myTitleSclice)
 	if err != nil{
 		log.Panic(err)
